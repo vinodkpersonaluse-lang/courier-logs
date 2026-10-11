@@ -75,6 +75,20 @@ nav button.on{color:var(--acc);font-weight:700}
 .abtn.call{background:var(--acc);color:#fff;border-color:var(--acc)}.abtn.wa{background:#25d366;color:#fff;border-color:#25d366}
 .fuh{display:flex;align-items:center;gap:6px;font-weight:700;margin:18px 0 8px}
 .hide{display:none!important}
+.cform{margin:12px 0}
+.cform label:first-child{margin-top:0}
+.cnt{margin:12px 2px 8px}
+#print-area{display:none}
+.modal{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.55);overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 12px) 12px 30px}
+.modal .card{max-width:640px;margin:0 auto}
+@media print{
+@page{size:A4;margin:10mm}
+html,body{background:#fff!important;padding:0!important;margin:0!important}
+body>*{display:none!important}
+body>#print-area{display:block!important;color:#000}
+.lbs{display:flex;flex-wrap:wrap;gap:10pt;align-items:flex-start}
+.lb2{border:1.5pt solid #000;box-sizing:border-box;overflow:hidden;break-inside:avoid;font-family:Arial,Helvetica,sans-serif;color:#000;background:#fff}
+}
 </style>
 </head>
 <body>
@@ -119,6 +133,22 @@ nav button.on{color:var(--acc);font-weight:700}
 <div id="list" style="margin-top:14px"></div>
 </section>
 
+<section id="v-cus" class="hide">
+<input id="cq" placeholder="🔍  Search customer, address, phone" oninput="renderCus()">
+<button class="btn sm" style="margin-top:10px" onclick="cusForm()">➕ Add customer</button>
+<div id="cus-form" class="card cform hide">
+<input type="hidden" id="cu-id">
+<b id="cu-title">New customer</b>
+<label for="cu-name">Customer / party name</label><input id="cu-name" autocomplete="off">
+<label for="cu-addr">Address</label><textarea id="cu-addr"></textarea>
+<label for="cu-phone">Phone no.</label><input id="cu-phone" type="tel">
+<button class="btn" onclick="cusSave()">Save customer</button>
+<button class="btn alt" onclick="cusClose()">Cancel</button>
+</div>
+<div id="cus-count" class="meta cnt"></div>
+<div id="cus-list"></div>
+</section>
+
 <section id="v-fu" class="hide"><div id="fu"></div></section>
 
 <section id="v-sum" class="hide">
@@ -128,7 +158,7 @@ nav button.on{color:var(--acc);font-weight:700}
 </section>
 
 <section id="v-bak" class="hide">
-<div class="card plain"><b>⬇️ Download Excel</b><p class="meta">Saves all records in the same columns as your sheet. Do this every week.</p>
+<div class="card plain"><b>⬇️ Download Excel</b><p class="meta">Saves all records (Sheet1) and your customer list (Customers sheet). Do this every week.</p>
 <button class="btn sm" onclick="exportXlsx()">Download Excel file</button></div>
 <div class="card plain"><b>⬆️ Import from Excel</b><p class="meta">Pick your Excel file. Records already in the app are skipped, new rows are added.</p>
 <label for="imp" class="btn sm" style="margin:0">Choose Excel file</label>
@@ -140,20 +170,45 @@ nav button.on{color:var(--acc);font-weight:700}
 <nav>
 <button id="t-add" class="on" onclick="tab('add')"><i>➕</i>Add</button>
 <button id="t-list" onclick="tab('list')"><i>📋</i>Records</button>
+<button id="t-cus" onclick="tab('cus')"><i>👥</i>Customers</button>
 <button id="t-fu" onclick="tab('fu')"><i>📞</i>Follow-up<span id="fu-badge" class="badge hide"></span></button>
 <button id="t-sum" onclick="tab('sum')"><i>📊</i>Status</button>
 <button id="t-bak" onclick="tab('bak')"><i>💾</i>Backup</button>
 </nav>
 <div id="toast" class="toast hide"></div>
+<div id="print-area"></div>
+<div id="pm" class="modal hide"><div class="card">
+<b>🖨 Print address</b><div class="meta">Edit anything below before printing.</div>
+<label for="pm-name">To - name</label><input id="pm-name">
+<label for="pm-addr">To - address</label><textarea id="pm-addr"></textarea>
+<label for="pm-phone">To - phone</label><input id="pm-phone" type="tel">
+<label for="pm-from">From (our address)</label><textarea id="pm-from" style="min-height:96px"></textarea>
+<div class="row"><div><label for="pm-size">Label size</label><select id="pm-size"></select></div>
+<div><label for="pm-copies">Copies</label><input id="pm-copies" type="number" min="1" max="24" value="1" inputmode="numeric"></div></div>
+<button class="btn" onclick="pmPrint()">🖨 Print</button>
+<button class="btn" style="background:var(--acc)" onclick="pmPdf()">⬇ Download PDF</button>
+<button class="btn alt" onclick="pmClose()">Cancel</button>
+</div></div>
 
 <script>
 const KEY='courier_log_v1';
 let data=[];
 try{data=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){data=[]}
 const SEED=[];
+const CKEY='courier_customers_v1';
+let cust=[];
+try{cust=JSON.parse(localStorage.getItem(CKEY)||'[]')}catch(e){cust=[]}
+const OUR={name:'Trivenkem Agencies',lines:['499, R.G. Street,','Coimbatore - 641001.'],phone:'90951 37333'};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function persist(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){toast('Could not save on this browser')}}
+function persistC(){try{localStorage.setItem(CKEY,JSON.stringify(cust))}catch(e){toast('Could not save on this browser')}}
+const ckey=n=>String(n||'').trim().toLowerCase().replace(/\s+/g,' ');
+function findCust(n){const k=ckey(n);return cust.find(x=>ckey(x.name)===k)}
+function upsertCust(name,addr,phone){if(!String(name||'').trim())return;const c=findCust(name);
+if(!c){cust.push({id:'c'+Date.now()+Math.random().toString(36).slice(2,6),name:name.trim(),address:addr||'',phone:phone||''});persistC();return}
+let ch=false;if(!c.address&&addr){c.address=addr;ch=true}if(!c.phone&&phone){c.phone=phone;ch=true}if(ch)persistC()}
+if(localStorage.getItem(CKEY)===null&&data.length){[...data].sort((a,b)=>b.date.localeCompare(a.date)).forEach(r=>upsertCust(r.party,r.address,r.phone))}
 function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hide'),2600)}
 function isoOf(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
 function today(){return isoOf(new Date())}
@@ -166,27 +221,31 @@ const notSent=r=>/^(cancelled|not couriered)/i.test(r.slip||'');
 function sentItems(r){if(notSent(r))return[];const c=split(r.cancelled).map(x=>x.toLowerCase());return split(r.items).filter(x=>!c.includes(x.toLowerCase()))}
 const chip=(x,cls)=>`<span class="chip ${cls||''}">${esc(x)}</span>`;
 
-function tab(n){['add','list','fu','sum','bak'].forEach(k=>{$('v-'+k).classList.toggle('hide',k!==n);$('t-'+k).classList.toggle('on',k===n)});
-if(n==='add')renderToday();if(n==='list')renderList();if(n==='fu')renderFu();if(n==='sum')renderSum();window.scrollTo(0,0)}
+function tab(n){['add','list','cus','fu','sum','bak'].forEach(k=>{$('v-'+k).classList.toggle('hide',k!==n);$('t-'+k).classList.toggle('on',k===n)});
+if(n==='add')renderToday();if(n==='list')renderList();if(n==='cus')renderCus();if(n==='fu')renderFu();if(n==='sum')renderSum();window.scrollTo(0,0)}
 
 function stats(rows){const cu=new Set();let s=0;rows.forEach(r=>{cu.add(r.party);s+=sentItems(r).length});return{p:rows.length,c:cu.size,s}}
 function tiles(st){return`<div class="tile t1"><b>${st.p}</b><span>Parcels</span></div><div class="tile t2"><b>${st.c}</b><span>Customers</span></div><div class="tile t3"><b>${st.s}</b><span>Samples sent</span></div>`}
 function renderToday(){$('hd-date').textContent='Today · '+nice(today());$('today').innerHTML=tiles(stats(data.filter(r=>r.date===today())));fuBadge()}
 
 function lists(){
-$('parties').innerHTML=[...new Set(data.map(r=>r.party))].sort().map(p=>`<option value="${esc(p)}">`).join('');
+$('parties').innerHTML=[...new Set([...cust.map(c=>c.name),...data.map(r=>r.party)])].sort((a,b)=>a.localeCompare(b)).map(p=>`<option value="${esc(p)}">`).join('');
 $('bys').innerHTML=[...new Set(data.map(r=>r.by).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join('');
 $('persons').innerHTML=[...new Set(data.map(r=>r.person).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join('')}
-function fillParty(){if($('eid').value)return;const r=[...data].reverse().find(x=>x.party===$('f-party').value);
-if(r){if(!$('f-addr').value)$('f-addr').value=r.address||'';if(!$('f-phone').value)$('f-phone').value=r.phone||''}}
-function resetForm(){$('eid').value='';['f-slip','f-party','f-addr','f-phone','f-items','f-canc','f-by','f-person'].forEach(i=>$(i).value='');
+let autoA='',autoP='';
+function fillParty(){if($('eid').value)return;const n=$('f-party').value;
+let a='',ph='',hit=findCust(n);
+if(hit){a=hit.address||'';ph=hit.phone||''}else{const r=[...data].reverse().find(x=>ckey(x.party)===ckey(n));if(r){a=r.address||'';ph=r.phone||''}else return}
+if(!$('f-addr').value||$('f-addr').value===autoA){$('f-addr').value=a;autoA=a}
+if(!$('f-phone').value||$('f-phone').value===autoP){$('f-phone').value=ph;autoP=ph}}
+function resetForm(){autoA='';autoP='';$('eid').value='';['f-slip','f-party','f-addr','f-phone','f-items','f-canc','f-by','f-person'].forEach(i=>$(i).value='');
 $('f-date').value=today();$('cancel-edit').classList.add('hide');$('form-title').textContent='➕ New record';fdTouched=false;$('f-st').value='sent';$('f-note').value='';autoFd()}
 function save(){
 const party=$('f-party').value.trim();if(!party){toast('Enter the party name');$('f-party').focus();return}
 const rec={id:$('eid').value||('r'+Date.now()),date:$('f-date').value||today(),party,address:$('f-addr').value.trim(),phone:$('f-phone').value.trim(),
 items:$('f-items').value.trim(),cancelled:$('f-canc').value.trim(),by:$('f-by').value.trim(),person:$('f-person').value.trim(),slip:$('f-slip').value.trim(),fstatus:$('f-st').value,fdate:$('f-fd').value||addDays($('f-date').value||today(),4),fnote:$('f-note').value.trim()};
 const i=data.findIndex(x=>x.id===rec.id);if(i>=0)data[i]=rec;else data.push(rec);
-persist();lists();resetForm();renderToday();remind();toast('✅ Saved')}
+persist();upsertCust(rec.party,rec.address,rec.phone);lists();resetForm();renderToday();remind();toast('✅ Saved')}
 function edit(id){const r=data.find(x=>x.id===id);if(!r)return;tab('add');$('eid').value=id;
 $('f-date').value=r.date;$('f-slip').value=r.slip;$('f-party').value=r.party;$('f-addr').value=r.address;$('f-phone').value=r.phone;
 $('f-items').value=r.items;$('f-canc').value=r.cancelled;$('f-by').value=r.by;$('f-person').value=r.person;
@@ -206,7 +265,7 @@ return`<div class="card"><div class="top"><div class="av">${esc(r.party.trim().c
 <div class="chips">${chips||'<span class="meta">No samples listed</span>'}</div>
 <div class="meta">Requested by ${esc(r.by||'-')} · Despatched by ${esc(r.person||'-')}</div>
 <div style="margin-top:6px"><span class="st st-${fs(r)}">${ST[fs(r)]}</span></div>${r.fnote?'<div class="meta" style="margin-top:4px">📝 '+esc(r.fnote)+'</div>':''}
-<div class="acts"><button class="btn alt sm" onclick="edit('${r.id}')">✏️ Edit</button><button class="btn alt sm red" onclick="del('${r.id}')">🗑 Delete</button></div></div>`}).join('')
+<div class="acts" style="flex-wrap:wrap"><button class="btn alt sm" onclick="edit('${r.id}')">✏️ Edit</button><button class="btn alt sm" onclick="printRec('${r.id}')">🖨 Print / PDF</button><button class="btn alt sm red" onclick="del('${r.id}')">🗑 Delete</button></div></div>`}).join('')
 :`<div class="empty">${data.length?'No records match your search.':'No records yet. Use Add to enter the first one, or import your Excel file under Backup.'}</div>`}
 
 let period='today',selMonth='',rFrom='',rTo='';
@@ -244,18 +303,118 @@ $('sum').innerHTML=`<div class="tiles">${tiles(st)}</div>
 <div><h3>${esc(p)}</h3><div class="meta">${c.n} parcel${c.n>1?'s':''} · last ${fmt(c.last)}</div></div></div>
 <div class="chips">${Object.values(c.items).map(x=>chip(x)).join('')||'<span class="meta">Nothing sent</span>'}</div></div>`}).join('')}`}
 
+/* ---------- Customers ---------- */
+function custStats(c){const k=ckey(c.name);const rs=data.filter(r=>ckey(r.party)===k);let last='';rs.forEach(r=>{if(r.date>last)last=r.date});return{n:rs.length,last}}
+function renderCus(){
+const q=$('cq').value.trim().toLowerCase();
+const rows=[...cust].sort((a,b)=>a.name.localeCompare(b.name)).filter(c=>!q||[c.name,c.address,c.phone].join(' ').toLowerCase().includes(q));
+$('cus-count').textContent=cust.length?(q?rows.length+' of '+cust.length+' customers':cust.length+' customers'):'';
+$('cus-list').innerHTML=rows.length?rows.map(c=>{const s=custStats(c);const tel=phoneOf(c);
+return`<div class="card"><div class="top"><div class="av">${esc(c.name.trim().charAt(0).toUpperCase())}</div>
+<div><h3>${esc(c.name)}</h3><div class="meta">${s.n?s.n+' parcel'+(s.n>1?'s':'')+' · last '+fmt(s.last):'No parcels yet'}</div></div></div>
+<div class="meta" style="margin-top:8px;white-space:pre-line">📍 ${esc(c.address)||'-'}</div>
+${c.phone?'<div class="meta">📞 '+esc(c.phone)+'</div>':''}
+<div class="acts" style="flex-wrap:wrap"><button class="btn sm" onclick="printCus('${c.id}')">🖨 Print / PDF</button>
+<button class="btn alt sm" onclick="newFor('${c.id}')">📦 Send sample</button>
+${tel?`<a class="abtn" href="tel:${tel.replace(/[^\d+]/g,'')}">📞 Call</a>`:''}
+<button class="btn alt sm" onclick="cusForm('${c.id}')">✏️ Edit</button><button class="btn alt sm red" onclick="cusDel('${c.id}')">🗑 Delete</button></div></div>`}).join('')
+:`<div class="empty">${cust.length?'No customers match your search.':'No customers yet. Tap Add customer, or save a record and the customer is added automatically.'}</div>`}
+function cusForm(id){const c=id?cust.find(x=>x.id===id):null;
+$('cu-id').value=c?c.id:'';$('cu-name').value=c?c.name:'';$('cu-addr').value=c?c.address:'';$('cu-phone').value=c?c.phone:'';
+$('cu-title').textContent=c?'✏️ Edit customer':'➕ New customer';$('cus-form').classList.remove('hide');$('cus-form').scrollIntoView({behavior:'smooth',block:'start'});$('cu-name').focus()}
+function cusClose(){$('cus-form').classList.add('hide')}
+function cusSave(){const id=$('cu-id').value,name=$('cu-name').value.trim().replace(/\s+/g,' ');
+if(!name){toast('Enter the customer name');$('cu-name').focus();return}
+const dup=findCust(name);if(dup&&dup.id!==id){toast('This customer already exists');return}
+const address=$('cu-addr').value.trim(),phone=$('cu-phone').value.trim();
+if(id){const c=cust.find(x=>x.id===id);const old=c.name;
+if(ckey(old)!==ckey(name)||old!==name){const n=data.filter(r=>ckey(r.party)===ckey(old)).length;
+if(n&&confirm('Also change the name in '+n+' past record'+(n>1?'s':'')+'?')){data.forEach(r=>{if(ckey(r.party)===ckey(old))r.party=name});persist()}}
+c.name=name;c.address=address;c.phone=phone}
+else cust.push({id:'c'+Date.now()+Math.random().toString(36).slice(2,6),name,address,phone});
+persistC();lists();cusClose();renderCus();toast('✅ Customer saved')}
+function cusDel(id){const c=cust.find(x=>x.id===id);if(!c)return;
+if(!confirm('Delete "'+c.name+'" from the customer list?\nPast records are not deleted.'))return;
+cust=cust.filter(x=>x.id!==id);persistC();lists();renderCus();toast('Deleted')}
+function newFor(id){const c=cust.find(x=>x.id===id);if(!c)return;tab('add');resetForm();
+$('f-party').value=c.name;$('f-addr').value=c.address||'';$('f-phone').value=c.phone||'';autoA=c.address||'';autoP=c.phone||'';$('f-slip').focus()}
+
+/* ---------- Print address label (editable) ---------- */
+const MM=72/25.4;
+const SIZES={s:{n:'Small · 100 × 60 mm',w:100,h:60},m:{n:'Medium · 120 × 80 mm',w:120,h:80},a6:{n:'A6 · 105 × 148 mm',w:105,h:148},a5:{n:'A5 · 148 × 210 mm',w:148,h:210}};
+const OURTXT=OUR.name+'\n'+OUR.lines.join('\n')+'\nPh - '+OUR.phone;
+function openPrint(name,addr,phone){$('pm-name').value=name||'';$('pm-addr').value=addr||'';$('pm-phone').value=phone||'';$('pm-from').value=OURTXT;
+let z='m';try{z=localStorage.getItem('courier_label_size')||'m'}catch(e){}if(!SIZES[z])z='m';
+$('pm-size').innerHTML=Object.entries(SIZES).map(([k,v])=>`<option value="${k}"${k===z?' selected':''}>${v.n}</option>`).join('');
+$('pm-copies').value=1;$('pm').classList.remove('hide');$('pm').scrollTop=0}
+function pmClose(){$('pm').classList.add('hide')}
+function readLabel(){const z=$('pm-size').value;try{localStorage.setItem('courier_label_size',z)}catch(e){}
+let c=parseInt($('pm-copies').value)||1;c=Math.max(1,Math.min(24,c));
+return{name:$('pm-name').value.trim(),addr:$('pm-addr').value.trim(),phone:$('pm-phone').value.trim(),from:$('pm-from').value.trim(),z:SIZES[z],copies:c}}
+function layout(L){
+const wpt=L.z.w*MM,hpt=L.z.h*MM,pad=9,W=wpt-2*pad-3;
+const k=Math.max(.6,Math.min(1.4,Math.min(wpt/340,hpt/227)));
+const wrap=(t,sz,b)=>{const out=[];String(t).split(/\r?\n/).forEach(par=>{let cur='';par.split(/\s+/).filter(Boolean).forEach(w=>{const n=cur?cur+' '+w:w;
+if(n.length*sz*(b?.6:.55)>W&&cur){out.push(cur);cur=w}else cur=n});if(cur)out.push(cur)});return out};
+for(let s=1.6;;s-=.05){const f=k*s,items=[];let tot=0;
+const add=(t,sz,b,gap)=>{items.push({t,sz,b,gap});tot+=gap+sz*1.25};
+add('TO',7*f,1,0);
+wrap(L.name,15*f,1).forEach((l,i)=>add(l,15*f,1,i?0:1*f));
+if(L.addr)wrap(L.addr,11.5*f,0).forEach((l,i)=>add(l,11.5*f,0,i?0:2*f));
+if(L.phone)add('Ph - '+L.phone,11.5*f,1,3*f);
+items.push({div:1,gap:5*f});tot+=5*f+1;
+add('FROM',7*f,1,3*f);
+let first=true;(L.from||'').split(/\r?\n/).forEach(l=>{if(!l.trim())return;wrap(l,9*f,first).forEach(x=>add(x,9*f,first,0));first=false});
+if(tot<=hpt-2*pad-4||s<=.35)return{wpt,hpt,pad,items}}}
+function labelHtml(L){const g=layout(L);
+const it=g.items.map(i=>i.div?`<div style="border-top:.8pt dashed #000;margin-top:${i.gap}pt"></div>`:`<div style="font-size:${i.sz}pt;line-height:1.25;white-space:nowrap;font-weight:${i.b?700:400};margin-top:${i.gap}pt">${esc(i.t)}</div>`).join('');
+return`<div class="lb2" style="width:${g.wpt}pt;height:${g.hpt}pt;padding:${g.pad}pt">${it}</div>`}
+function pmPrint(){const L=readLabel();if(!L.name){toast('Enter the customer name');return}
+let h='';for(let i=0;i<L.copies;i++)h+=labelHtml(L);
+$('print-area').innerHTML='<div class="lbs">'+h+'</div>';pmClose();setTimeout(()=>window.print(),80)}
+function pmPdf(){const L=readLabel();if(!L.name){toast('Enter the customer name');return}
+const T=s=>String(s==null?'':s).replace(/[^\x20-\xFF]/g,'?');
+const pe=s=>T(s).replace(/\\/g,'\\\\').replace(/\(/g,'\\(').replace(/\)/g,'\\)');
+const g=layout(L),PW=595,PH=842,M=28,G=10;
+const cols=Math.max(1,Math.floor((PW-2*M+G)/(g.wpt+G))),rows=Math.max(1,Math.floor((PH-2*M+G)/(g.hpt+G))),per=cols*rows;
+const pages=[];
+for(let i=0;i<L.copies;i++){const pg=Math.floor(i/per),j=i%per;const ops=pages[pg]=pages[pg]||[];
+const x0=M+(j%cols)*(g.wpt+G),yt=PH-M-Math.floor(j/cols)*(g.hpt+G);
+ops.push('1.5 w '+x0.toFixed(1)+' '+(yt-g.hpt).toFixed(1)+' '+g.wpt.toFixed(1)+' '+g.hpt.toFixed(1)+' re S');
+let cur=g.pad+1.5;
+g.items.forEach(it=>{cur+=it.gap;
+if(it.div){const y=(yt-cur).toFixed(1);ops.push('0.8 w [4 3] 0 d '+(x0+g.pad+1.5).toFixed(1)+' '+y+' m '+(x0+g.wpt-g.pad-1.5).toFixed(1)+' '+y+' l S [] 0 d');cur+=1;return}
+cur+=it.sz*1.25;
+ops.push('BT /F'+(it.b?2:1)+' '+it.sz.toFixed(2)+' Tf '+(x0+g.pad+1.5).toFixed(1)+' '+(yt-cur+it.sz*.28).toFixed(1)+' Td ('+pe(it.t)+') Tj ET')})}
+const objs=['<</Type/Catalog/Pages 2 0 R>>','','<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>','<</Type/Font/Subtype/Type1/BaseFont/Helvetica-Bold/Encoding/WinAnsiEncoding>>'];
+const kids=[];
+pages.forEach((ops,n)=>{const st=ops.join('\n');const po=5+2*n;kids.push(po+' 0 R');
+objs.push('<</Type/Page/Parent 2 0 R/MediaBox[0 0 '+PW+' '+PH+']/Contents '+(po+1)+' 0 R/Resources<</Font<</F1 3 0 R/F2 4 0 R>>>>>>');
+objs.push('<</Length '+st.length+'>>\nstream\n'+st+'\nendstream')});
+objs[1]='<</Type/Pages/Kids['+kids.join(' ')+']/Count '+pages.length+'>>';
+let pdf='%PDF-1.4\n';const off=[];objs.forEach((o,i)=>{off.push(pdf.length);pdf+=(i+1)+' 0 obj\n'+o+'\nendobj\n'});
+const xr=pdf.length;pdf+='xref\n0 '+(objs.length+1)+'\n0000000000 65535 f \n'+off.map(o=>String(o).padStart(10,'0')+' 00000 n \n').join('')+'trailer\n<</Size '+(objs.length+1)+'/Root 1 0 R>>\nstartxref\n'+xr+'\n%%EOF';
+const u=new Uint8Array(pdf.length);for(let i=0;i<pdf.length;i++)u[i]=pdf.charCodeAt(i)&255;
+const url=URL.createObjectURL(new Blob([u],{type:'application/pdf'}));const a=document.createElement('a');
+a.href=url;a.download='Address_'+(L.name.replace(/[^\w]+/g,'_').replace(/^_+|_+$/g,'').slice(0,30)||'label')+'.pdf';
+document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);toast('PDF downloaded')}
+function printCus(id){const c=cust.find(x=>x.id===id);if(c)openPrint(c.name,c.address,c.phone)}
+function printRec(id){const r=data.find(x=>x.id===id);if(!r)return;const c=findCust(r.party);openPrint(r.party,r.address||(c&&c.address)||'',r.phone||(c&&c.phone)||'')}
+
 const HEAD=['Date','Party Name','Address','Phone No','Item','Item Cancelled','Courier Requested By','Request Date','Despatch Person','Courier Slip No','Follow-up Status','Follow-up Date','Notes'];
 function markBackup(){try{localStorage.setItem('courier_last_backup',String(Date.now()))}catch(e){}remind()}
 function remind(){let t=0;try{t=+localStorage.getItem('courier_last_backup')||0}catch(e){}
 const old=!t||Date.now()-t>7*864e5;const el=$('remind');
 el.classList.toggle('hide',!(data.length&&old));el.innerHTML='<b>💾 Time for an Excel backup</b><p class="meta">'+(t?'Last backup was more than a week ago.':'You have not downloaded a backup yet.')+'</p><button class="btn sm" onclick="tab(\'bak\')">Go to Backup</button>'}
 function exportXlsx(){
-if(!data.length){toast('Nothing to export yet');return}
+if(!data.length&&!cust.length){toast('Nothing to export yet');return}
 if(!window.XLSX){toast('Excel tool not loaded. Check internet.');return}
 const rows=[...data].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>{const d=new Date(r.date+'T00:00:00Z');return[d,r.party,r.address,r.phone,r.items,r.cancelled,r.by,d,r.person,r.slip,ST[fs(r)],new Date(fdue(r)+'T00:00:00Z'),r.fnote||'']});
 const ws=XLSX.utils.aoa_to_sheet([['SAMPLE - REQUEST LIST'],HEAD,...rows],{cellDates:true});
 ws['!cols']=[{wch:11},{wch:30},{wch:40},{wch:14},{wch:40},{wch:20},{wch:16},{wch:11},{wch:14},{wch:22},{wch:16},{wch:12},{wch:30}];
 const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+const cws=XLSX.utils.aoa_to_sheet([['Customer Name','Address','Phone No'],...[...cust].sort((a,b)=>a.name.localeCompare(b.name)).map(c=>[c.name,c.address,c.phone])]);
+cws['!cols']=[{wch:30},{wch:45},{wch:16}];XLSX.utils.book_append_sheet(wb,cws,'Customers');
 XLSX.writeFile(wb,'Sample_Courier_Requests_'+today()+'.xlsx');markBackup();toast('Excel downloaded')}
 function toIso(v){if(v instanceof Date)return v.toISOString().slice(0,10);
 if(typeof v==='number')return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);
@@ -275,7 +434,12 @@ rows.slice(h+1).forEach((r,i)=>{if(!g(r,'party'))return;
 const rec={id:'i'+Date.now()+'_'+i,date:toIso(r[C.date]),party:g(r,'party'),address:g(r,'addr'),phone:g(r,'phone'),items:g(r,'items'),cancelled:g(r,'canc'),by:g(r,'by'),person:g(r,'person'),slip:g(r,'slip')};
 if(g(r,'fst'))rec.fstatus=stKey(g(r,'fst'));if(g(r,'fdt'))rec.fdate=toIso(r[C.fdt]);if(g(r,'note'))rec.fnote=g(r,'note');
 const k=[rec.date,rec.party,rec.slip,rec.items].join('|');if(seen.has(k)){skipped++;return}seen.add(k);data.push(rec);added++});
-persist();lists();renderToday();toast('✅ '+added+' imported, '+skipped+' already in app')}catch(err){toast('Import failed: '+(err&&err.message?err.message:'unreadable file'))}
+data.forEach(r=>upsertCust(r.party,r.address,r.phone));
+const cn=wb.SheetNames.find(n=>/^customers?$/i.test(n.trim()));let ca=0;
+if(cn){XLSX.utils.sheet_to_json(wb.Sheets[cn],{header:1,defval:''}).slice(1).forEach(r=>{const nm=String(r[0]||'').trim();if(!nm)return;
+const ex=findCust(nm);if(!ex){cust.push({id:'c'+Date.now()+Math.random().toString(36).slice(2,6),name:nm,address:String(r[1]||'').trim(),phone:String(r[2]||'').trim()});ca++}
+else{if(!ex.address&&r[1])ex.address=String(r[1]).trim();if(!ex.phone&&r[2])ex.phone=String(r[2]).trim()}});persistC()}
+persist();lists();renderToday();toast('✅ '+added+' imported, '+skipped+' already in app'+(ca?', '+ca+' new customers':''))}catch(err){toast('Import failed: '+(err&&err.message?err.message:'unreadable file'))}
 try{$('imp').value=''}catch(e){}};
 rd.readAsArrayBuffer(f)}
 
