@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sample Courier Log</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0a6f6a">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f2f5f7;--card:#fff;--ink:#14263a;--mute:#5d6d7e;--line:#d7dee5;--acc:#0a6f6a;--acc-ink:#fff;--warn:#b3261e;--chip:#e3f0ef;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1822;--card:#16232f;--ink:#e8eef3;--mute:#9bacbb;--line:#2a3a48;--acc:#3cc2b9;--acc-ink:#06201e;--warn:#ff8a80;--chip:#1d3a3a}}
+:root[data-theme="dark"]{--bg:#0e1822;--card:#16232f;--ink:#e8eef3;--mute:#9bacbb;--line:#2a3a48;--acc:#3cc2b9;--acc-ink:#06201e;--warn:#ff8a80;--chip:#1d3a3a}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 "Atkinson Hyperlegible",system-ui,sans-serif}
+.wrap{max-width:640px;margin:0 auto;padding:12px 14px 90px}
+h1{font-size:1.25rem;margin:6px 0 10px}
+nav{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;display:flex;gap:6px;background:var(--bg);padding:6px 0 10px}
+nav button{flex:1;padding:11px 4px;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:10px;font:inherit;font-weight:700}
+nav button.on{background:var(--acc);color:var(--acc-ink);border-color:var(--acc)}
+label{display:block;font-weight:700;font-size:.9rem;margin:12px 0 4px}
+input,textarea,select{width:100%;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--ink);font:inherit}
+textarea{min-height:84px;resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.btn{padding:13px 16px;border:0;border-radius:10px;background:var(--acc);color:var(--acc-ink);font:inherit;font-weight:700;width:100%;margin-top:16px}
+.btn.alt{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+.btn.sm{width:auto;margin:0;padding:8px 12px;font-size:.9rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin:0 0 10px}
+.card h3{margin:0 0 2px;font-size:1.05rem}
+.meta{color:var(--mute);font-size:.88rem}
+.chips{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.chip{background:var(--chip);border-radius:99px;padding:3px 10px;font-size:.85rem}
+.chip.x{text-decoration:line-through;color:var(--warn);background:transparent;border:1px solid var(--warn)}
+.acts{display:flex;gap:8px;margin-top:8px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px}
+.stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;text-align:center}
+.stat b{display:block;font-size:1.6rem;color:var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:.92rem}
+td,th{padding:8px 6px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+th{color:var(--mute)}td.n,th.n{text-align:right}
+.scroll{overflow-x:auto}
+.empty{text-align:center;color:var(--mute);padding:30px 10px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:99px;font-weight:700;z-index:9}
+h2{font-size:1.05rem;margin:18px 0 8px}
+.hide{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Sample Courier Log</h1>
+<nav>
+<button id="t-add" class="on" onclick="tab('add')">Add</button>
+<button id="t-list" onclick="tab('list')">Records</button>
+<button id="t-sum" onclick="tab('sum')">Summary</button>
+<button id="t-bak" onclick="tab('bak')">Backup</button>
+</nav>
+
+<section id="v-add">
+<div id="remind" class="card hide"></div>
+<form onsubmit="return false">
+<input type="hidden" id="eid">
+<div class="row">
+<div><label for="f-date">Date</label><input type="date" id="f-date"></div>
+<div><label for="f-slip">Courier slip no. / status</label><input id="f-slip" placeholder="C4000257671 or Direct Meet"></div>
+</div>
+<label for="f-party">Party name</label>
+<input id="f-party" list="parties" autocomplete="off" oninput="fillParty()">
+<datalist id="parties"></datalist>
+<label for="f-addr">Address</label><textarea id="f-addr"></textarea>
+<label for="f-phone">Phone no.</label><input id="f-phone" type="tel">
+<label for="f-items">Samples sent (separate with commas)</label>
+<textarea id="f-items" placeholder="Lemon Treat, Ivory Clean, Excel Shine"></textarea>
+<label for="f-canc">Samples cancelled</label><input id="f-canc">
+<div class="row">
+<div><label for="f-by">Courier requested by</label><input id="f-by" list="bys"></div>
+<div><label for="f-person">Despatch person</label><input id="f-person" list="persons"></div>
+</div>
+<datalist id="bys"></datalist><datalist id="persons"></datalist>
+<button class="btn" onclick="save()">Save record</button>
+<button class="btn alt hide" id="cancel-edit" onclick="resetForm()">Cancel edit</button>
+</form>
+</section>
+
+<section id="v-list" class="hide">
+<input id="q" placeholder="Search party, sample, slip, place" oninput="renderList()">
+<div id="list" style="margin-top:12px"></div>
+</section>
+
+<section id="v-sum" class="hide">
+<label for="mon">Period</label><select id="mon" onchange="renderSum()"></select>
+<div id="sum" style="margin-top:12px"></div>
+</section>
+
+<section id="v-bak" class="hide">
+<div class="card"><b>Download Excel</b><p class="meta">Saves all records in the same columns as your sheet. Do this every week as a backup.</p>
+<button class="btn sm" onclick="exportXlsx()">Download Excel file</button></div>
+<div class="card"><b>Import from Excel</b><p class="meta">Pick your old Sample Courier Requests file. Records already in the app are kept.</p>
+<label for="imp" class="btn sm" style="display:inline-block;margin:0">Choose Excel file</label>
+<input type="file" id="imp" class="hide" accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv,*/*" onchange="importFile(this.files[0])"></div>
+<div class="card"><b>Import by paste</b><p class="meta">If the file picker does not open: in Excel, select the heading row and all data rows, tap Copy, then paste here.</p>
+<textarea id="paste" placeholder="Paste Excel rows here"></textarea>
+<button class="btn sm" style="margin-top:10px" onclick="importPaste()">Import pasted rows</button></div>
+<p class="meta">Records are stored on this phone, in this browser. Clearing browser data erases them, so keep the Excel backup.</p>
+</section>
+</div>
+<div id="toast" class="toast hide"></div>
+
+<script>
+const KEY='courier_log_v1';
+let data=[];
+try{data=JSON.parse(localStorage.getItem(KEY)||'[]')}catch(e){data=[]}
+const SEED=[{"date": "2026-09-04", "party": "Lakshmi Chennakeshava Enterprises", "address": "D.No - 4/181, Nallabandagudam Village, Suriyapet, Kodad - 508260.", "phone": "9842239350", "items": "Lemon Treat , Ivory Cleen, Excel Shine", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000257671", "id": "sb1c1379fa5"}, {"date": "2026-09-05", "party": "Trade Link", "address": "Flat No: 8 , Ground Floor, Anupanadi Nadu Street, Madurai - 625009.", "phone": "9944411737", "items": "Natural Green, Mystic Sandal, COD Dreams, Enchanted Forest, Island Roses, Lemon Dozz", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000257672", "id": "s0aadbd52f8"}, {"date": "2026-09-04", "party": "G G Organics", "address": "R.S. No - 122/6 , V.O.C Nagar, Thuthipet Revenue Village, Villanur Commune, Pondycherry - 605502.", "phone": "9865350221", "items": "Pink Fantasy, Ivory Clean", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000257673", "id": "sc39d7ddcf7"}, {"date": "2026-09-07", "party": "Mahi Chemicals Enterprises", "address": "1-D1, Saravanampatti Road, Coimbatore - 641029.", "phone": "8838473613", "items": "P-300 , P - 2000 (Enzymes)", "cancelled": "", "by": "MD", "person": "Siddharth", "slip": "C4000257702", "id": "s9a03febfe1"}, {"date": "2026-09-07", "party": "Saturn Detergent", "address": "1/187, Ranathottam, Moongilpalayam Panchayat, Perundurai - 638056.", "phone": "994401238", "items": "P-2000 , S - 3000, M-2000", "cancelled": "", "by": "MD", "person": "Siddharth", "slip": "Dispatched through Jayalakshmi Transport", "id": "s5a346622bc"}, {"date": "2026-09-07", "party": "Hygard Household Product (P) Ltd", "address": "6, Avarampalayam, Ganapathy, Coimbatore - 641006.", "phone": "9500996916", "items": "P - 300", "cancelled": "", "by": "MD", "person": "Siddharth", "slip": "C4000257701", "id": "s933153460b"}, {"date": "2026-09-07", "party": "S.K. Chemicals & Traders", "address": "Opp SICGISOL Gases, 345-A , Moperipalayam, Alampalayam Pirivu, Kaniyur, Cbe -641659.", "phone": "9952814348", "items": "Lemon Treet, Mercy Caps, Blue Desire, Pink Sernity.", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000257703", "id": "sc322ccb60d"}, {"date": "2026-09-08", "party": "Martvin Cosmetics", "address": "Near Madepati, Krishnagiri", "phone": "9940631191", "items": "Sandal Diva - 25g", "cancelled": "", "by": "Thiruvikraman", "person": "Siddharth", "slip": "64430329176", "id": "s90df9645de"}, {"date": "2026-09-08", "party": "A.D.N Soap Works", "address": "7/57, D Aaraikulam, Palayamkottai, Tirunelveli - 627356.", "phone": "9443155196", "items": "K.S Fruit, Aqua Mermaid, Sunny Lemon", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "64430329191", "id": "s08542596c3"}, {"date": "2026-09-08", "party": "ESS DEE Enterprises", "address": "40, Vaadamalli Street, sanjeevi Nagar, Trichy- 620002.", "phone": "9500065562", "items": "Ultra Power, Jasmine Gold, Citron Punch.", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000247598", "id": "s0e4e5e0a64"}, {"date": "2026-09-08", "party": "Pista Soaps", "address": "11/481A, Chungam, Feroke Post, Calicut - 673631.", "phone": "9946005664", "items": "Airwash, Bright Bold, Excel Shine, Fablous Heaven.", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000247599", "id": "s043a299a11"}, {"date": "2026-09-08", "party": "Kota Chem", "address": "Gollapudi Pantakalava Road, Opp to Siri Appartment, Gollapudi, Viajayawada - 521225.", "phone": "8985222211 , 8985123232.", "items": "Comey Rouge, Oriental Wish, Skyline Crystals, Wow Strawberry.", "cancelled": "", "by": "MD", "person": "Siddharth", "slip": "C4000247600", "id": "sb7c4879ca5"}, {"date": "2026-09-08", "party": "Lesun Soaps (P) Ltd", "address": "7A, Abiami Avenue, 12th Street, Kodungayur, Chennai - 600118.", "phone": "9940756786", "items": "Moroccon Lavender, Sunny Lemon, Aqua Mermaid.", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000247594", "id": "sb17bcaf47f"}, {"date": "2026-09-09", "party": "Lakshmi Soaps", "address": "139/A.B.C Sundakamuthur Road, Selvapuram, Coimbatore - 641026.", "phone": "9443504735", "items": "UCB, Amazon Tree, Peppy Lime.", "cancelled": "", "by": "Thiruvikraman", "person": "Siddharth", "slip": "Dispatched through vehicle by shiva", "id": "sd018e97587"}, {"date": "2026-09-10", "party": "Sri Home Consumer Chennai", "address": "27/28, Sidco Industrial Estate, Tambaram, Chennai - 600044.", "phone": "9566160606", "items": "Soft Hormony, Linen Touch, Alluring Bouquet.", "cancelled": "", "by": "Thiruvikraman", "person": "Siddharth", "slip": "C4000247596", "id": "scb936945ba"}, {"date": "2026-09-10", "party": "Mr. Shaji K.M", "address": "Kuruvath House Kvera - 113, Ashoka Road, Ambathy Lane, Kaloor, Ernakulam - 682017.", "phone": "9995485408", "items": "", "cancelled": "", "by": "MD", "person": "Siva", "slip": "C4000247602", "id": "s4889ca40c3"}, {"date": "2026-09-10", "party": "S.K. Chemicals & Traders", "address": "Opp SICGISOL Gases, 345-A , Moperipalayam, Alampalayam Pirivu, Kaniyur, Cbe -641659.", "phone": "9952814348", "items": "Mercy Caps - Empty Bottle", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000247597", "id": "sce1d9da72c"}, {"date": "2026-09-10", "party": "Meera Labs Chennai (P) Ltd", "address": "181, Baskar Colony, Saligramam, Chennai - 600092.", "phone": "9629653389", "items": "Spark, Flural Joy, Petals & Opulence.", "cancelled": "", "by": "Thiruvikraman", "person": "Siddharth", "slip": "64430329180", "id": "s5cbd1e4c09"}, {"date": "2026-09-12", "party": "Mr. Chandra Shakhar (Jindo Sriram Eco Chemicals)", "address": "No. 824/6 & 7 , Bairamangalam Village, Kelamangalam Road, Venkanikottai Taluk, Krishnagiri - 635113.", "phone": "7892295010", "items": "P - 300", "cancelled": "", "by": "Thiruvikraman", "person": "Siddharth", "slip": "C4000247744", "id": "se3129aead9"}, {"date": "2026-09-16", "party": "Hygard Household Product (P) Ltd", "address": "6, Avarampalayam, Ganapathy, Coimbatore - 641006.", "phone": "9500996916", "items": "Pure Sandal, Green Garden, Neem Scent.", "cancelled": "", "by": "Thiruvikraman", "person": "Thiruvikraman", "slip": "Thirivikraman Dispatched", "id": "s5235b7948c"}, {"date": "2026-09-16", "party": "Sri Jayabalaji Chemicals", "address": "189, Main Road, Kovilpatti - 628501.", "phone": "9500340250 , 9442300000", "items": "Moroccon Lavender, K.S Fruit, Mercy Caps, Blue Desire, Rose IVY, Jasmine Gold, Citron Punch, UCB, Ultra Power,Pink Sternity, Summer Shimmer, Misty Mango, Lemon Treet.", "cancelled": "Ultra power, Lemon Treet.", "by": "Kavitha", "person": "Siddharth", "slip": "C4000247756", "id": "s44c572ff4d"}, {"date": "2026-09-16", "party": "Shri Thiruvelan Enterprises", "address": "D.No - 418 , Kalarampatti Main Road, Kalarampatti, Salem - 636015", "phone": "9487747481", "items": "Lemon Treat , Bright Sky, Sunny Lemon, Aqua Mermaid, Moroccon Lavender, Ultra Power, K.S Fruit, MM Flower.", "cancelled": "Lemon Treat, Ultra Power, Bright Sky", "by": "Kavitha", "person": "Siddharth", "slip": "64434027291", "id": "s283ef04fb1"}, {"date": "2026-09-17", "party": "Sri Venkatarama Gaia Pvt Ltd", "address": "Hussenpuram, Samalkot, Andrapradesh - 533440.", "phone": "9133312146", "items": "", "cancelled": "", "by": "", "person": "", "slip": "C4000247757", "id": "s77756ea5f2"}, {"date": "2026-09-19", "party": "P.Mugundakrishnan", "address": "19/A1, Ground Floor, 16th Street, 5th Aveneue, Ashok Nagar,Chennai- 6000083", "phone": "908343057", "items": "Aqtic HL415 - 1 Nos, Aquatic YS100 6H25 - 4 Nos, Aquatic DL40S 6H06 - 4 Nos, Aquatic DL453 6A16 - 4 Nos, Aquatic DL522 5F06 - 2 Nos, Aquatic HL415 6C17 - 3 Nos, Aquatic DL100 5C03H1 - 2 Nos, Aquatic DL100 5C02H1 - 2 Nos.", "cancelled": "", "by": "MD", "person": "Shiva", "slip": "64437193306", "id": "s549279e2cb"}, {"date": "2026-09-23", "party": "Jonarin and Co.", "address": "Jonarin House, NH Bypass, Padivattom, Edappally P.O Kochi-682024.", "phone": "7025860000", "items": "Blue Star, Blue Desire, UCB , FWC 1008, Moroccon Lavender, Rose Ivy.", "cancelled": "Sunny Lemon.", "by": "Kavitha", "person": "Siddharth", "slip": "C1002682190", "id": "s801c3eba75"}, {"date": "2026-09-25", "party": "P.Mugundakrishnan", "address": "19/A1, Ground Floor, 16th Street, 5th Aveneue, Ashok Nagar,Chennai- 6000083", "phone": "908343057", "items": "Acusol 445, Acusol 402 , Each 3kg", "cancelled": "", "by": "MD", "person": "Shiva", "slip": "64439036605", "id": "s7747cb911a"}, {"date": "2026-09-25", "party": "D.S Products", "address": "F-52, Industrial Area, Ramnagar, Chandauli, Uttar Pradesh - 232104.", "phone": "8313065163", "items": "Majestic Realm, Surprising Wood, and Jas Green. (210 gm)", "cancelled": "", "by": "MD", "person": "Siddharth", "slip": "Cancelled - Courier charges Higher", "id": "sc7cb258c56"}, {"date": "2026-09-26", "party": "Jarvin Surfactants", "address": "D.No-6/10A, Danal Cheruvu Yalampalli Village, Pakalamandal, Chittoor, AndraPradesh - 517152.", "phone": "9036718050", "items": "Moroccon Lavender, Misty Mango, UCB", "cancelled": "Sunny Lemon, Crash Light", "by": "MD", "person": "Shiva", "slip": "C4000136202", "id": "s91ad7ced44"}, {"date": "2026-09-29", "party": "Future Chem Corporation Chennai", "address": "504, 3rd Main Road, Balaji Nagar, Ambattur, Chennai - 600053.", "phone": "8124081780", "items": "Sky 09, Excel Shine.", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000136179", "id": "s3a9959527e"}, {"date": "2026-09-29", "party": "Tanushree Agencies / Erode", "address": "13, Eswaran Pillai Street, Erode - 638001", "phone": "9486484958", "items": "Sunny Lemon , Aqua Mermaid, Moroccon Lavender.", "cancelled": "Sunny Lemon", "by": "Kavitha", "person": "Siddharth", "slip": "Not couriered", "id": "sd622555380"}, {"date": "2026-09-29", "party": "Sri Lakshmi International Marketing / Namakkal.", "address": "Rasipuram, Mohanur, Namakkal - 637015", "phone": "7867036565", "items": "Sunny Lemon , Lemon Treat, Jasmine Gold", "cancelled": "Lemon Treat, Sunny Lemon", "by": "Kavitha", "person": "Siddharth", "slip": "Not couriered", "id": "s4187fe0ab6"}, {"date": "2026-09-29", "party": "Sri Lakshmi International Marketing / Chengalpattu", "address": "Plot No - 31 , Usha Nagar, Nandhivara, Guduvancherry, Chengalpattu - 603202.", "phone": "7867036565", "items": "Sunny Lemon , Lemon Treat, Jasmine Gold", "cancelled": "Lemon Treat, Sunny Lemon", "by": "Kavitha", "person": "Siddharth", "slip": "Not couriered", "id": "s43a32a090e"}, {"date": "2026-09-30", "party": "Shini Innovations (P) Ltd", "address": "No.20/10, First Floor, Ganesh Nagar Main Road, G.K Industrial Estate, Alapakkam, Porur, Chennai - 600116.", "phone": "9952736281", "items": "Spicy Mint, Red Mint", "cancelled": "", "by": "MD", "person": "Siddharth", "slip": "C4000136201", "id": "sc5925328aa"}, {"date": "2026-10-03", "party": "Saturn Detergent", "address": "1/187, Ranathottam, Moongilpalayam Panchayat, Perundurai - 638056.", "phone": "994401238", "items": "YS 100", "cancelled": "", "by": "MD / Vanitha", "person": "Siddharth", "slip": "64440524503", "id": "s97e9b2ca74"}, {"date": "2026-10-03", "party": "Vivin Tex / Cuddalore", "address": "Plot No - A/8C , Sipcot Inmdustrial Complex, Phase -1, Cuddalore - 607005", "phone": "9840103891", "items": "UCB, FWC, Arabian Rose", "cancelled": "", "by": "Kavitha", "person": "Siddharth", "slip": "C4000136225", "id": "s873e06044d"}, {"date": "2026-10-07", "party": "Kaniyam Daily Homecare and Consumer Products", "address": "Tmv Building, 2/104-3 (or 2/104-1), New Colony, Andipatti, Alangulam, Tenkasi District, Tamil Nadu – 627851.", "phone": "7639333044", "items": "Exca Wave", "cancelled": "", "by": "Kavitha", "person": "Vinod", "slip": "Direct Meet", "id": "sf56051081d"}, {"date": "2026-10-07", "party": "PEEAM Chemicals", "address": "2/140-1, New Colony, Andipatty, Alangulam, Tenkasi - 627851", "phone": "7399555558", "items": "Jasmine Gold, Amazon tree, Fruity Blossom, Blue Star", "cancelled": "", "by": "Kavitha", "person": "Vinod", "slip": "Direct Meet", "id": "s08488e00e5"}, {"date": "2026-10-07", "party": "Salute Soap", "address": "Sri Balaji Industry, 3/113, Ambai Road, Kalathimadam, Alangulam, Tamil Nadu 627851.", "phone": "9489202351", "items": "", "cancelled": "", "by": "Kavitha", "person": "Vinod", "slip": "Direct Meet", "id": "sac0b21dada"}, {"date": "2026-10-07", "party": "Anivel Soap Factory", "address": "near the Kamarajar Statue on Main Road, Keelakalangal, V.K. Pudur Taluk, Tirunelveli district, Tamil Nadu, 627860", "phone": "7823938562", "items": "Lemon punch, Moroccon Lavender, Jasmine Gold, Fruity Blossom, Softline", "cancelled": "", "by": "Kavitha", "person": "Vinod", "slip": "Direct Meet", "id": "s78ea91f961"}, {"date": "2026-10-08", "party": "Ragava Chemicals", "address": "65N, Car St, Tenkasi - 9842342169", "phone": "9842342169", "items": "Aqua Mermaid, Moroccon Lavender, Blue Star, Comfy Rouge, Skyline Crystals.", "cancelled": "", "by": "Kavitha", "person": "Vinod", "slip": "Direct Meet", "id": "s80886e66db"}, {"date": "2026-10-09", "party": "A A Industries (Right Soap)", "address": "105A, Nethaji Rd,Veeramanikapuram, Melapalayam, Tirunelveli - 627005.", "phone": "8667306659", "items": "Sunny Lemon , Lemon treat, Lemon Punch", "cancelled": "", "by": "Vinod", "person": "Siddharth", "slip": "", "id": "s802e725ebd"}];
+(function(){let done=[];try{done=JSON.parse(localStorage.getItem('courier_seed_done')||'[]')}catch(e){}
+const key=r=>[r.date,r.party,r.slip,r.items].join('|');const have=new Set(data.map(key));let n=0;
+SEED.forEach(r=>{if(done.includes(r.id))return;done.push(r.id);if(have.has(key(r)))return;have.add(key(r));data.push(r);n++});
+try{localStorage.setItem('courier_seed_done',JSON.stringify(done))}catch(e){}if(n)persist()})();
+const $=id=>document.getElementById(id);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(data))}catch(e){toast('Could not save on this browser')}}
+function toast(m){const t=$('toast');t.textContent=m;t.classList.remove('hide');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.add('hide'),2200)}
+function today(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+function fmt(iso){if(!iso)return'';const p=iso.split('-');return p[2]+'-'+p[1]+'-'+p[0]}
+function tab(n){['add','list','sum','bak'].forEach(k=>{$('v-'+k).classList.toggle('hide',k!==n);$('t-'+k).classList.toggle('on',k===n)});
+if(n==='list')renderList();if(n==='sum')renderSum();window.scrollTo(0,0)}
+const split=s=>String(s||'').split(/,|\band\b|\n/i).map(x=>x.trim().replace(/[.\s]+$/,'')).filter(Boolean);
+const notSent=r=>/^(cancelled|not couriered)/i.test(r.slip||'');
+function sentItems(r){if(notSent(r))return[];const c=split(r.cancelled).map(x=>x.toLowerCase());return split(r.items).filter(x=>!c.includes(x.toLowerCase()))}
+
+function lists(){
+$('parties').innerHTML=[...new Set(data.map(r=>r.party))].sort().map(p=>`<option value="${esc(p)}">`).join('');
+$('bys').innerHTML=[...new Set(data.map(r=>r.by).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join('');
+$('persons').innerHTML=[...new Set(data.map(r=>r.person).filter(Boolean))].map(p=>`<option value="${esc(p)}">`).join('')}
+function fillParty(){if($('eid').value)return;const r=[...data].reverse().find(x=>x.party===$('f-party').value);
+if(r){if(!$('f-addr').value)$('f-addr').value=r.address||'';if(!$('f-phone').value)$('f-phone').value=r.phone||''}}
+function resetForm(){$('eid').value='';['f-slip','f-party','f-addr','f-phone','f-items','f-canc','f-by','f-person'].forEach(i=>$(i).value='');
+$('f-date').value=today();$('cancel-edit').classList.add('hide')}
+function save(){
+const party=$('f-party').value.trim();if(!party){toast('Enter the party name');$('f-party').focus();return}
+const rec={id:$('eid').value||('r'+Date.now()),date:$('f-date').value||today(),party,address:$('f-addr').value.trim(),phone:$('f-phone').value.trim(),
+items:$('f-items').value.trim(),cancelled:$('f-canc').value.trim(),by:$('f-by').value.trim(),person:$('f-person').value.trim(),slip:$('f-slip').value.trim()};
+const i=data.findIndex(x=>x.id===rec.id);if(i>=0)data[i]=rec;else data.push(rec);
+persist();lists();resetForm();remind();toast('Saved')}
+function edit(id){const r=data.find(x=>x.id===id);if(!r)return;tab('add');$('eid').value=id;
+$('f-date').value=r.date;$('f-slip').value=r.slip;$('f-party').value=r.party;$('f-addr').value=r.address;$('f-phone').value=r.phone;
+$('f-items').value=r.items;$('f-canc').value=r.cancelled;$('f-by').value=r.by;$('f-person').value=r.person;$('cancel-edit').classList.remove('hide')}
+function del(id){if(!confirm('Delete this record?'))return;data=data.filter(x=>x.id!==id);persist();lists();renderList();toast('Deleted')}
+
+function renderList(){
+const q=$('q').value.trim().toLowerCase();
+const rows=[...data].sort((a,b)=>b.date.localeCompare(a.date)).filter(r=>!q||[r.party,r.address,r.items,r.slip,r.by,r.person,r.phone].join(' ').toLowerCase().includes(q));
+$('list').innerHTML=rows.length?rows.map(r=>{
+const c=split(r.cancelled).map(x=>x.toLowerCase());
+const chips=split(r.items).map(x=>`<span class="chip${c.includes(x.toLowerCase())?' x':''}">${esc(x)}</span>`).join('');
+return`<div class="card"><h3>${esc(r.party)}</h3><div class="meta">${fmt(r.date)} · ${esc(r.slip||'No slip no.')}</div>
+<div class="meta">${esc(r.address)}${r.phone?' · '+esc(r.phone):''}</div>
+<div class="chips">${chips||'<span class="meta">No samples listed</span>'}</div>
+<div class="meta">Requested by ${esc(r.by||'-')} · Despatched by ${esc(r.person||'-')}</div>
+<div class="acts"><button class="btn alt sm" onclick="edit('${r.id}')">Edit</button><button class="btn alt sm" style="color:var(--warn)" onclick="del('${r.id}')">Delete</button></div></div>`}).join('')
+:`<div class="empty">${data.length?'No records match your search.':'No records yet. Use Add to enter the first one, or import your Excel file under Backup.'}</div>`}
+
+function renderSum(){
+const months=[...new Set(data.map(r=>r.date.slice(0,7)))].sort().reverse();
+const cur=$('mon').value||'all';
+$('mon').innerHTML='<option value="all">All time</option>'+months.map(m=>`<option value="${m}">${m.slice(5)}-${m.slice(0,4)}</option>`).join('');
+$('mon').value=months.includes(cur)||cur==='all'?cur:'all';
+const sel=$('mon').value;const rows=data.filter(r=>sel==='all'||r.date.startsWith(sel));
+const cust={},items={};let total=0;
+rows.forEach(r=>{const si=sentItems(r);
+const c=cust[r.party]=cust[r.party]||{n:0,items:{},last:''};c.n++;if(r.date>c.last)c.last=r.date;
+si.forEach(it=>{const k=it.toLowerCase();total++;c.items[k]=it;const t=items[k]=items[k]||{name:it,n:0,parties:new Set()};t.n++;t.parties.add(r.party)})});
+const cl=Object.entries(cust).sort((a,b)=>b[1].n-a[1].n);
+const il=Object.values(items).sort((a,b)=>b.n-a.n);
+if(!rows.length){$('sum').innerHTML='<div class="empty">No data for this period.</div>';return}
+$('sum').innerHTML=`<div class="stats"><div class="stat"><b>${rows.length}</b>Parcels</div><div class="stat"><b>${cl.length}</b>Customers</div><div class="stat"><b>${total}</b>Samples sent</div></div>
+<h2>Samples sent</h2><div class="scroll"><table><tr><th>Sample</th><th class="n">Times</th><th class="n">Customers</th></tr>
+${il.map(t=>`<tr><td>${esc(t.name)}</td><td class="n">${t.n}</td><td class="n">${t.parties.size}</td></tr>`).join('')}</table></div>
+<h2>Customers</h2>${cl.map(([p,c])=>`<div class="card"><h3>${esc(p)}</h3><div class="meta">${c.n} parcel${c.n>1?'s':''} · last ${fmt(c.last)}</div>
+<div class="chips">${Object.values(c.items).map(x=>`<span class="chip">${esc(x)}</span>`).join('')||'<span class="meta">Nothing sent</span>'}</div></div>`).join('')}`}
+
+const HEAD=['Date','Party Name','Address','Phone No','Item','Item Cancelled','Courier Requested By','Request Date','Despatch Person','Courier Slip No'];
+function exportXlsx(){
+if(!data.length){toast('Nothing to export yet');return}
+const rows=[...data].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>{const d=new Date(r.date+'T00:00:00Z');return[d,r.party,r.address,r.phone,r.items,r.cancelled,r.by,d,r.person,r.slip]});
+if(!window.XLSX){toast('Excel tool not loaded. Check internet.');return}
+const ws=XLSX.utils.aoa_to_sheet([['SAMPLE - REQUEST LIST'],HEAD,...rows],{cellDates:true});
+ws['!cols']=[{wch:11},{wch:30},{wch:40},{wch:14},{wch:40},{wch:20},{wch:16},{wch:11},{wch:14},{wch:22}];
+const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
+const out=XLSX.write(wb,{type:'array',bookType:'xlsx'});const name='Sample_Courier_Requests_'+today()+'.xlsx';
+(window.claude?claude.use('downloads'):Promise.resolve(null)).then(d=>{
+if(!d){XLSX.writeFile(wb,name);markBackup();return}
+return d.save({filename:name,data:out}).then(()=>{markBackup();toast('Excel saved')})
+}).catch(e=>{if(!e||e.code!=='declined')toast('Could not save the file')})}
+function markBackup(){try{localStorage.setItem('courier_last_backup',String(Date.now()))}catch(e){}remind()}
+function remind(){let t=0;try{t=+localStorage.getItem('courier_last_backup')||0}catch(e){}
+const old=!t||Date.now()-t>7*864e5;const el=$('remind');
+el.classList.toggle('hide',!(data.length&&old));el.innerHTML='<b>Time for an Excel backup</b><p class="meta">'+(t?'Last backup was more than a week ago.':'You have not downloaded a backup yet.')+'</p><button class="btn sm" onclick="tab(\'bak\')">Go to Backup</button>'}
+function toIso(v){if(v instanceof Date)return v.toISOString().slice(0,10);
+if(typeof v==='number')return new Date(Math.round((v-25569)*864e5)).toISOString().slice(0,10);
+const m=String(v||'').match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/);if(m)return m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
+return/^\d{4}-\d{2}-\d{2}/.test(String(v))?String(v).slice(0,10):today()}
+function importFile(f){if(!f)return;if(!window.XLSX){toast('Excel tool not loaded. Check internet.');return}
+const rd=new FileReader();rd.onload=e=>runImport(()=>XLSX.read(e.target.result,{type:'array'}));rd.readAsArrayBuffer(f)}
+function importPaste(){const t=$('paste').value;if(!t.trim()){toast('Paste your rows first');return}runImport(()=>XLSX.read(t,{type:'string',FS:'\t'}));$('paste').value=''}
+function runImport(getWb){try{const wb=getWb();
+const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:true,defval:''});
+const h=rows.findIndex(r=>r.some(c=>/^party/i.test(String(c).trim())));if(h<0){toast('Could not find the Party Name column');return}
+const hd=rows[h].map(c=>String(c).trim().toLowerCase());
+const ci=(re,def)=>{const i=hd.findIndex(c=>re.test(c));return i<0?def:i};
+const C={date:ci(/^date$/,0),party:ci(/^party/,1),addr:ci(/^address/,2),phone:ci(/^phone/,3),items:ci(/^items?( sent)?$/,4),canc:ci(/cancel/,5),by:ci(/requested by/,6),person:ci(/despatch|dispatch/,8),slip:ci(/slip/,9)};
+const g=(r,k)=>String(r[C[k]]==null?'':r[C[k]]).trim();
+let added=0;const seen=new Set(data.map(r=>[r.date,r.party,r.slip,r.items].join('|')));
+let skipped=0;rows.slice(h+1).forEach((r,i)=>{if(!g(r,'party'))return;
+const rec={id:'i'+Date.now()+'_'+i,date:toIso(r[C.date]),party:g(r,'party'),address:g(r,'addr'),phone:g(r,'phone'),items:g(r,'items'),cancelled:g(r,'canc'),by:g(r,'by'),person:g(r,'person'),slip:g(r,'slip')};
+const k=[rec.date,rec.party,rec.slip,rec.items].join('|');if(seen.has(k)){skipped++;return}seen.add(k);data.push(rec);added++});
+persist();lists();renderList();toast(added+' imported, '+skipped+' already in app')}catch(err){toast('Import failed: '+(err&&err.message?err.message:'unreadable file'))}$('imp').value=''}
+
+$('f-date').value=today();lists();remind();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+</script>
+</body>
+</html>
