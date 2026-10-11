@@ -67,21 +67,29 @@ nav button{flex:1;border:0;background:none;color:var(--mute);font:inherit;font-s
 nav button i{font-style:normal;font-size:1.25rem}
 nav button.on{color:var(--acc);font-weight:700}
 .toast{position:fixed;left:50%;bottom:calc(82px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#323232;color:#fff;padding:9px 16px;border-radius:4px;z-index:20;font-size:.85rem;box-shadow:var(--sh);max-width:90%;text-align:center}
+.st{display:inline-block;padding:1px 8px;border-radius:4px;font-size:.72rem;font-weight:600}
+.st-sent{background:#e8f0fe;color:#1a4fb5}.st-followed{background:#fff3cd;color:#8a5a00}.st-trial{background:#e0f2e9;color:#1b6b3a}.st-order{background:#d7f5dd;color:#146c2e}.st-lost{background:#eceff1;color:#555}
+.due-red{color:var(--warn);font-weight:700}
+.badge{display:inline-block;min-width:17px;padding:0 5px;border-radius:9px;background:var(--org);color:#fff;font-size:.66rem;font-weight:700;margin-left:3px;line-height:1.5}
+.abtn{display:inline-block;padding:8px 12px;border-radius:4px;font:inherit;font-size:.82rem;font-weight:600;text-decoration:none;border:1px solid var(--line);background:var(--card);color:var(--acc);cursor:pointer}
+.abtn.call{background:var(--acc);color:#fff;border-color:var(--acc)}.abtn.wa{background:#25d366;color:#fff;border-color:#25d366}
+.fuh{display:flex;align-items:center;gap:6px;font-weight:700;margin:18px 0 8px}
 .hide{display:none!important}
 </style>
 </head>
 <body>
-<header><h1>📦 Sample Courier Log</h1><p id="hd-date"></p></header>
+<header><div style="display:flex;gap:11px;align-items:center"><img src="icon-192.png" width="40" height="40" style="border-radius:10px" alt=""><div><h1>Courier Log</h1><p id="hd-date"></p></div></div></header>
 <div class="wrap">
 
 <section id="v-add">
 <div id="today" class="tiles" style="margin-bottom:6px"></div>
+<div id="fu-alert" class="card hide" style="margin-top:12px;display:flex;align-items:center;justify-content:space-between"></div>
 <div id="remind" class="card plain hide" style="margin-top:14px"></div>
 <form onsubmit="return false">
 <input type="hidden" id="eid">
 <h2 id="form-title">➕ New record</h2>
 <div class="row">
-<div><label for="f-date">Date</label><input type="date" id="f-date"></div>
+<div><label for="f-date">Date</label><input type="date" id="f-date" oninput="autoFd()"></div>
 <div><label for="f-slip">Courier slip no. / status</label><input id="f-slip" placeholder="C4000257671 or Direct Meet"></div>
 </div>
 <label for="f-party">Party name</label>
@@ -97,6 +105,10 @@ nav button.on{color:var(--acc);font-weight:700}
 <div><label for="f-person">Despatch person</label><input id="f-person" list="persons"></div>
 </div>
 <datalist id="bys"></datalist><datalist id="persons"></datalist>
+<h2>📞 Follow-up</h2>
+<div class="row"><div><label for="f-st">Status</label><select id="f-st"><option value="sent">Sample sent</option><option value="followed">Followed up</option><option value="trial">Trial ordered</option><option value="order">Order received</option><option value="lost">Not interested</option></select></div>
+<div><label for="f-fd">Follow-up date</label><input type="date" id="f-fd" oninput="fdTouched=true"></div></div>
+<label for="f-note">Notes</label><textarea id="f-note" placeholder="What did the customer say? Example: likes Lemon Punch, wants 500 g trial"></textarea>
 <button class="btn" onclick="save()">Save record</button>
 <button class="btn alt hide" id="cancel-edit" onclick="resetForm()">Cancel edit</button>
 </form>
@@ -106,6 +118,8 @@ nav button.on{color:var(--acc);font-weight:700}
 <input id="q" placeholder="🔍  Search party, sample, slip, place" oninput="renderList()">
 <div id="list" style="margin-top:14px"></div>
 </section>
+
+<section id="v-fu" class="hide"><div id="fu"></div></section>
 
 <section id="v-sum" class="hide">
 <div class="pills" id="pills"></div>
@@ -126,6 +140,7 @@ nav button.on{color:var(--acc);font-weight:700}
 <nav>
 <button id="t-add" class="on" onclick="tab('add')"><i>➕</i>Add</button>
 <button id="t-list" onclick="tab('list')"><i>📋</i>Records</button>
+<button id="t-fu" onclick="tab('fu')"><i>📞</i>Follow-up<span id="fu-badge" class="badge hide"></span></button>
 <button id="t-sum" onclick="tab('sum')"><i>📊</i>Status</button>
 <button id="t-bak" onclick="tab('bak')"><i>💾</i>Backup</button>
 </nav>
@@ -151,12 +166,12 @@ const notSent=r=>/^(cancelled|not couriered)/i.test(r.slip||'');
 function sentItems(r){if(notSent(r))return[];const c=split(r.cancelled).map(x=>x.toLowerCase());return split(r.items).filter(x=>!c.includes(x.toLowerCase()))}
 const chip=(x,cls)=>`<span class="chip ${cls||''}">${esc(x)}</span>`;
 
-function tab(n){['add','list','sum','bak'].forEach(k=>{$('v-'+k).classList.toggle('hide',k!==n);$('t-'+k).classList.toggle('on',k===n)});
-if(n==='add')renderToday();if(n==='list')renderList();if(n==='sum')renderSum();window.scrollTo(0,0)}
+function tab(n){['add','list','fu','sum','bak'].forEach(k=>{$('v-'+k).classList.toggle('hide',k!==n);$('t-'+k).classList.toggle('on',k===n)});
+if(n==='add')renderToday();if(n==='list')renderList();if(n==='fu')renderFu();if(n==='sum')renderSum();window.scrollTo(0,0)}
 
 function stats(rows){const cu=new Set();let s=0;rows.forEach(r=>{cu.add(r.party);s+=sentItems(r).length});return{p:rows.length,c:cu.size,s}}
 function tiles(st){return`<div class="tile t1"><b>${st.p}</b><span>Parcels</span></div><div class="tile t2"><b>${st.c}</b><span>Customers</span></div><div class="tile t3"><b>${st.s}</b><span>Samples sent</span></div>`}
-function renderToday(){$('hd-date').textContent='Today · '+nice(today());$('today').innerHTML=tiles(stats(data.filter(r=>r.date===today())))}
+function renderToday(){$('hd-date').textContent='Today · '+nice(today());$('today').innerHTML=tiles(stats(data.filter(r=>r.date===today())));fuBadge()}
 
 function lists(){
 $('parties').innerHTML=[...new Set(data.map(r=>r.party))].sort().map(p=>`<option value="${esc(p)}">`).join('');
@@ -165,16 +180,17 @@ $('persons').innerHTML=[...new Set(data.map(r=>r.person).filter(Boolean))].map(p
 function fillParty(){if($('eid').value)return;const r=[...data].reverse().find(x=>x.party===$('f-party').value);
 if(r){if(!$('f-addr').value)$('f-addr').value=r.address||'';if(!$('f-phone').value)$('f-phone').value=r.phone||''}}
 function resetForm(){$('eid').value='';['f-slip','f-party','f-addr','f-phone','f-items','f-canc','f-by','f-person'].forEach(i=>$(i).value='');
-$('f-date').value=today();$('cancel-edit').classList.add('hide');$('form-title').textContent='➕ New record'}
+$('f-date').value=today();$('cancel-edit').classList.add('hide');$('form-title').textContent='➕ New record';fdTouched=false;$('f-st').value='sent';$('f-note').value='';autoFd()}
 function save(){
 const party=$('f-party').value.trim();if(!party){toast('Enter the party name');$('f-party').focus();return}
 const rec={id:$('eid').value||('r'+Date.now()),date:$('f-date').value||today(),party,address:$('f-addr').value.trim(),phone:$('f-phone').value.trim(),
-items:$('f-items').value.trim(),cancelled:$('f-canc').value.trim(),by:$('f-by').value.trim(),person:$('f-person').value.trim(),slip:$('f-slip').value.trim()};
+items:$('f-items').value.trim(),cancelled:$('f-canc').value.trim(),by:$('f-by').value.trim(),person:$('f-person').value.trim(),slip:$('f-slip').value.trim(),fstatus:$('f-st').value,fdate:$('f-fd').value||addDays($('f-date').value||today(),4),fnote:$('f-note').value.trim()};
 const i=data.findIndex(x=>x.id===rec.id);if(i>=0)data[i]=rec;else data.push(rec);
 persist();lists();resetForm();renderToday();remind();toast('✅ Saved')}
 function edit(id){const r=data.find(x=>x.id===id);if(!r)return;tab('add');$('eid').value=id;
 $('f-date').value=r.date;$('f-slip').value=r.slip;$('f-party').value=r.party;$('f-addr').value=r.address;$('f-phone').value=r.phone;
 $('f-items').value=r.items;$('f-canc').value=r.cancelled;$('f-by').value=r.by;$('f-person').value=r.person;
+$('f-st').value=fs(r);$('f-fd').value=fdue(r);$('f-note').value=r.fnote||'';fdTouched=true;
 $('cancel-edit').classList.remove('hide');$('form-title').textContent='✏️ Edit record'}
 function del(id){if(!confirm('Delete this record?'))return;data=data.filter(x=>x.id!==id);persist();lists();renderList();toast('Deleted')}
 
@@ -189,6 +205,7 @@ return`<div class="card"><div class="top"><div class="av">${esc(r.party.trim().c
 <div class="meta" style="margin-top:8px">📍 ${esc(r.address)||'-'}${r.phone?' · 📞 '+esc(r.phone):''}</div>
 <div class="chips">${chips||'<span class="meta">No samples listed</span>'}</div>
 <div class="meta">Requested by ${esc(r.by||'-')} · Despatched by ${esc(r.person||'-')}</div>
+<div style="margin-top:6px"><span class="st st-${fs(r)}">${ST[fs(r)]}</span></div>${r.fnote?'<div class="meta" style="margin-top:4px">📝 '+esc(r.fnote)+'</div>':''}
 <div class="acts"><button class="btn alt sm" onclick="edit('${r.id}')">✏️ Edit</button><button class="btn alt sm red" onclick="del('${r.id}')">🗑 Delete</button></div></div>`}).join('')
 :`<div class="empty">${data.length?'No records match your search.':'No records yet. Use Add to enter the first one, or import your Excel file under Backup.'}</div>`}
 
@@ -227,7 +244,7 @@ $('sum').innerHTML=`<div class="tiles">${tiles(st)}</div>
 <div><h3>${esc(p)}</h3><div class="meta">${c.n} parcel${c.n>1?'s':''} · last ${fmt(c.last)}</div></div></div>
 <div class="chips">${Object.values(c.items).map(x=>chip(x)).join('')||'<span class="meta">Nothing sent</span>'}</div></div>`}).join('')}`}
 
-const HEAD=['Date','Party Name','Address','Phone No','Item','Item Cancelled','Courier Requested By','Request Date','Despatch Person','Courier Slip No'];
+const HEAD=['Date','Party Name','Address','Phone No','Item','Item Cancelled','Courier Requested By','Request Date','Despatch Person','Courier Slip No','Follow-up Status','Follow-up Date','Notes'];
 function markBackup(){try{localStorage.setItem('courier_last_backup',String(Date.now()))}catch(e){}remind()}
 function remind(){let t=0;try{t=+localStorage.getItem('courier_last_backup')||0}catch(e){}
 const old=!t||Date.now()-t>7*864e5;const el=$('remind');
@@ -235,9 +252,9 @@ el.classList.toggle('hide',!(data.length&&old));el.innerHTML='<b>💾 Time for a
 function exportXlsx(){
 if(!data.length){toast('Nothing to export yet');return}
 if(!window.XLSX){toast('Excel tool not loaded. Check internet.');return}
-const rows=[...data].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>{const d=new Date(r.date+'T00:00:00Z');return[d,r.party,r.address,r.phone,r.items,r.cancelled,r.by,d,r.person,r.slip]});
+const rows=[...data].sort((a,b)=>a.date.localeCompare(b.date)).map(r=>{const d=new Date(r.date+'T00:00:00Z');return[d,r.party,r.address,r.phone,r.items,r.cancelled,r.by,d,r.person,r.slip,ST[fs(r)],new Date(fdue(r)+'T00:00:00Z'),r.fnote||'']});
 const ws=XLSX.utils.aoa_to_sheet([['SAMPLE - REQUEST LIST'],HEAD,...rows],{cellDates:true});
-ws['!cols']=[{wch:11},{wch:30},{wch:40},{wch:14},{wch:40},{wch:20},{wch:16},{wch:11},{wch:14},{wch:22}];
+ws['!cols']=[{wch:11},{wch:30},{wch:40},{wch:14},{wch:40},{wch:20},{wch:16},{wch:11},{wch:14},{wch:22},{wch:16},{wch:12},{wch:30}];
 const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Sheet1');
 XLSX.writeFile(wb,'Sample_Courier_Requests_'+today()+'.xlsx');markBackup();toast('Excel downloaded')}
 function toIso(v){if(v instanceof Date)return v.toISOString().slice(0,10);
@@ -251,17 +268,52 @@ const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]],{header:1,raw:tr
 const h=rows.findIndex(r=>r.some(c=>/^party/i.test(String(c).trim())));if(h<0){toast('Could not find the Party Name column');return}
 const hd=rows[h].map(c=>String(c).trim().toLowerCase());
 const ci=(re,def)=>{const i=hd.findIndex(c=>re.test(c));return i<0?def:i};
-const C={date:ci(/^date$/,0),party:ci(/^party/,1),addr:ci(/^address/,2),phone:ci(/^phone/,3),items:ci(/^items?( sent)?$/,4),canc:ci(/cancel/,5),by:ci(/requested by/,6),person:ci(/despatch|dispatch/,8),slip:ci(/slip/,9)};
+const C={date:ci(/^date$/,0),party:ci(/^party/,1),addr:ci(/^address/,2),phone:ci(/^phone/,3),items:ci(/^items?( sent)?$/,4),canc:ci(/cancel/,5),by:ci(/requested by/,6),person:ci(/despatch|dispatch/,8),slip:ci(/slip/,9),fst:ci(/follow.?up status/,-1),fdt:ci(/follow.?up date/,-1),note:ci(/^notes?$/,-1)};
 const g=(r,k)=>String(r[C[k]]==null?'':r[C[k]]).trim();
 let added=0,skipped=0;const seen=new Set(data.map(r=>[r.date,r.party,r.slip,r.items].join('|')));
 rows.slice(h+1).forEach((r,i)=>{if(!g(r,'party'))return;
 const rec={id:'i'+Date.now()+'_'+i,date:toIso(r[C.date]),party:g(r,'party'),address:g(r,'addr'),phone:g(r,'phone'),items:g(r,'items'),cancelled:g(r,'canc'),by:g(r,'by'),person:g(r,'person'),slip:g(r,'slip')};
+if(g(r,'fst'))rec.fstatus=stKey(g(r,'fst'));if(g(r,'fdt'))rec.fdate=toIso(r[C.fdt]);if(g(r,'note'))rec.fnote=g(r,'note');
 const k=[rec.date,rec.party,rec.slip,rec.items].join('|');if(seen.has(k)){skipped++;return}seen.add(k);data.push(rec);added++});
 persist();lists();renderToday();toast('✅ '+added+' imported, '+skipped+' already in app')}catch(err){toast('Import failed: '+(err&&err.message?err.message:'unreadable file'))}
 try{$('imp').value=''}catch(e){}};
 rd.readAsArrayBuffer(f)}
 
-$('f-date').value=today();lists();renderToday();remind();
+let fdTouched=false;
+const ST={sent:'Sample sent',followed:'Followed up',trial:'Trial ordered',order:'Order received',lost:'Not interested'};
+function stKey(l){return Object.keys(ST).find(k=>ST[k].toLowerCase()===String(l).trim().toLowerCase())||'sent'}
+const fs=r=>r.fstatus||'sent';
+const fdue=r=>r.fdate||addDays(r.date,4);
+function autoFd(){if(fdTouched||$('eid').value)return;$('f-fd').value=addDays($('f-date').value||today(),4)}
+function needsFu(r){return !notSent(r)&&['sent','followed','trial'].includes(fs(r))&&(r.fstatus||r.date>=addDays(today(),-10))}
+function dueList(){return data.filter(needsFu).map(r=>({r,d:fdue(r)})).sort((a,b)=>a.d.localeCompare(b.d))}
+function fuBadge(){const t=today();const n=dueList().filter(x=>x.d<=t).length;
+const b=$('fu-badge');b.textContent=n;b.classList.toggle('hide',!n);
+const a=$('fu-alert');a.classList.toggle('hide',!n);a.innerHTML=n?`<b>📞 ${n} follow-up${n>1?'s':''} due</b><button class="btn sm" onclick="tab('fu')">View</button>`:''}
+function phoneOf(r){const m=String(r.phone||'').match(/\+?\d[\d\s\-]{6,}\d/);return m?m[0]:''}
+function waLink(r){let p=phoneOf(r).replace(/\D/g,'');if(!p)return'';if(p.length===11&&p[0]==='0')p=p.slice(1);if(p.length===10)p='91'+p;
+const msg='Hello, this is TRIVENKEM AGENCIES. Did you receive our fragrance samples'+(sentItems(r).length?' ('+sentItems(r).join(', ')+')':'')+'? Have you tested them? Which one did you like best?';
+return'https://wa.me/'+p+'?text='+encodeURIComponent(msg)}
+function fuCard(x,t){const r=x.r;const diff=Math.round((new Date(t+'T00:00:00')-new Date(x.d+'T00:00:00'))/864e5);
+const lab=diff>0?`<span class="due-red">${diff} day${diff>1?'s':''} overdue</span>`:diff===0?'<b>Due today</b>':`Due in ${-diff} day${-diff>1?'s':''}`;
+const tel=phoneOf(r),wa=waLink(r);
+return`<div class="card"><div class="top"><div class="av">${esc(r.party.trim().charAt(0).toUpperCase())}</div><div><h3>${esc(r.party)}</h3>
+<div class="meta">Sample sent ${fmt(r.date)} · <span class="st st-${fs(r)}">${ST[fs(r)]}</span></div></div></div>
+<div class="meta" style="margin-top:6px">⏰ ${lab} (${fmt(x.d)})${tel?' · 📞 '+esc(tel):''}</div>
+<div class="chips">${sentItems(r).map(i=>chip(i)).join('')||'<span class="meta">No samples listed</span>'}</div>
+${r.fnote?'<div class="meta">📝 '+esc(r.fnote)+'</div>':''}
+<div class="acts" style="flex-wrap:wrap">${tel?`<a class="abtn call" href="tel:${tel.replace(/[^\d+]/g,'')}">📞 Call</a>`:''}${wa?`<a class="abtn wa" target="_blank" rel="noopener" href="${wa}">💬 WhatsApp</a>`:''}
+<button class="abtn" onclick="fuDone('${r.id}')">✔ Followed up</button><button class="abtn" onclick="fuOrder('${r.id}')">🎉 Order received</button><button class="abtn" onclick="edit('${r.id}')">✏️ Edit</button></div></div>`}
+function renderFu(){const t=today();const L=dueList();
+const over=L.filter(x=>x.d<t),now=L.filter(x=>x.d===t),soon=L.filter(x=>x.d>t);
+const sec=(title,a)=>a.length?`<div class="fuh">${title} (${a.length})</div>`+a.map(x=>fuCard(x,t)).join(''):'';
+$('fu').innerHTML=L.length?sec('🔴 Overdue',over)+sec('🟠 Due today',now)+sec('🗓 Upcoming',soon)
+:'<div class="empty">🎉 No follow-ups pending.<br>New samples appear here 4 days after you send them.</div>';
+if(L.length&&!over.length&&!now.length)$('fu').insertAdjacentHTML('afterbegin','<div class="meta" style="padding:2px 2px 0">Nothing due today. Upcoming follow-ups are below.</div>')}
+function fuDone(id){const r=data.find(x=>x.id===id);if(!r)return;r.fstatus='followed';r.fdate=addDays(today(),3);persist();toast('Done. Next follow-up in 3 days');renderFu();fuBadge()}
+function fuOrder(id){const r=data.find(x=>x.id===id);if(!r)return;r.fstatus='order';persist();toast('🎉 Order marked received');renderFu();fuBadge()}
+
+$('f-date').value=today();autoFd();lists();renderToday();remind();
 if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
 </script>
 </body>
